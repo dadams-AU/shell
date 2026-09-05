@@ -7,7 +7,10 @@
 #include <qdbuspendingreply.h>
 #include <qdbusreply.h>
 #include <qloggingcategory.h>
+#include <qprocess.h>
 
+#include "config/rootnodes.hpp"
+#include "config/sessionconfig.hpp"
 #include "core/toaster.hpp"
 #include "util/i18n.hpp"
 
@@ -60,6 +63,22 @@ SessionManager::SessionManager(QObject* parent)
         qCWarning(lcSessionManager) << "Failed to connect to Unlock signal:" << bus->lastError().message();
 }
 
+QString SessionManager::aliasFor(const QStringList& command) {
+    if (command.isEmpty()) {
+        return {};
+    }
+
+    auto cmd = command.first();
+    // Alias systemctl and loginctl to raw dbus calls (only match exact command)
+    if ((cmd == u"systemctl"_s || cmd == u"loginctl"_s) && command.size() == 2)
+        cmd = command.at(1);
+    if (cmd == u"loginctl"_s && command.size() == 3 && command.at(1) == u"terminate-user"_s && command.at(2).isEmpty())
+        cmd = u"logout"_s; // Manual alias `loginctl terminate-user ''` -> logout
+
+    // Normalise command
+    return cmd.remove(u'-').remove(u'_').toLower();
+}
+
 bool SessionManager::exec(const QStringList& command) {
     if (command.isEmpty()) {
         return false;
@@ -74,17 +93,7 @@ bool SessionManager::exec(const QStringList& command) {
         { u"reboot"_s, &SessionManager::reboot },
     };
 
-    auto cmd = command.first();
-    // Alias systemctl and loginctl to raw dbus calls (only match exact command)
-    if ((cmd == u"systemctl"_s || cmd == u"loginctl"_s) && command.size() == 2)
-        cmd = command.at(1);
-    if (cmd == u"loginctl"_s && command.size() == 3 && command.at(1) == u"terminate-user"_s && command.at(2).isEmpty())
-        cmd = u"logout"_s; // Manual alias `loginctl terminate-user ''` -> logout
-
-    // Normalise command
-    cmd = cmd.remove(u'-').remove(u'_').toLower();
-
-    const auto methodPtr = k_cmds.value(cmd, nullptr);
+    const auto methodPtr = k_cmds.value(aliasFor(command), nullptr);
     if (methodPtr) {
         (this->*methodPtr)();
         return true;
@@ -94,6 +103,18 @@ bool SessionManager::exec(const QStringList& command) {
 }
 
 void SessionManager::logout() {
+    // Honor session.commands.logout here, not only in the session drawer: the launcher's default
+    // Logout action calls exec(["logout"]) which lands here, and a raw logind Terminate under SDDM
+    // kills sddm-helper and leaves no greeter behind.
+    const auto configured = config::ConfigSingleton::instance()->session()->commands()->logout();
+    if (!configured.isEmpty() && aliasFor(configured) != u"logout"_s) {
+        qCInfo(lcSessionManager) << "Running configured logout command:" << configured;
+        // Same path the session drawer takes: aliases first, then a detached process
+        if (!exec(configured))
+            QProcess::startDetached(configured.first(), configured.mid(1));
+        return;
+    }
+
     callSession(u"Terminate"_s);
 }
 
