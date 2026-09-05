@@ -40,6 +40,7 @@ private slots:
     void handleUnlockRequested();
 
 private:
+    [[nodiscard]] static QString aliasFor(const QStringList& command);
     [[nodiscard]] static std::optional<QDBusConnection> getSystemBus();
     [[nodiscard]] static bool queryHibernateAvailable();
     void call(const QString& path, const QString& iface, const QString& method, const QVariantList& args = {});
