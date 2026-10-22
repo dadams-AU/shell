@@ -1,4 +1,5 @@
 import QtQuick
+import Quickshell.Services.UPower
 import Caelestia
 import Caelestia.Config
 import Caelestia.Multimedia
@@ -86,7 +87,7 @@ Item {
         id: live
 
         anchors.fill: parent
-        playing: PersistentState.wallpaperPlaying
+        playing: PersistentState.wallpaperPlaying && !UPower.onBattery
         animate: false
         layer.enabled: true
 

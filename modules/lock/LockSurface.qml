@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Effects
+import Quickshell.Services.UPower
 import Quickshell.Wayland
 import Caelestia.Config
 import Caelestia.Multimedia
@@ -190,7 +191,7 @@ WlSessionLockSurface {
 
         Visual {
             source: Wallpapers.current
-            playing: PersistentState.wallpaperPlaying
+            playing: PersistentState.wallpaperPlaying && !UPower.onBattery
         }
     }
 
