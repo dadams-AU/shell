@@ -51,6 +51,9 @@ void Requests::get(const QUrl& url, const QJSValue& onSuccess, const QJSValue& o
     QNetworkRequest request(url);
     request.setAttribute(QNetworkRequest::CacheLoadControlAttribute, QNetworkRequest::AlwaysNetwork);
     request.setAttribute(QNetworkRequest::CookieSaveControlAttribute, QNetworkRequest::Manual);
+    // Qt 6.12's HTTP/2 stack can segfault in QHttp2Stream::handleHEADERS when several requests share a
+    // connection, which the lock screen does by reloading the weather once per monitor.
+    request.setAttribute(QNetworkRequest::Http2AllowedAttribute, false);
     request.setRawHeader("Cache-Control"_ba, "no-cache, no-store"_ba);
     request.setRawHeader("Pragma"_ba, "no-cache"_ba);
     request.setRawHeader("Connection"_ba, "close"_ba);
